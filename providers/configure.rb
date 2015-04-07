@@ -25,7 +25,14 @@ end
 
 def configure
   base_piddir = new_resource.base_piddir
-  version_hash = RedisioHelper.version_to_hash(new_resource.version)
+
+  if not new_resource.version
+    redis_output = %x[#{node['redisio']['bin_path']}/redis-server -v]
+    current_version = redis_output.gsub(/.*v=((\d+\.){2}\d+).*/, '\1')
+  else
+    current_version = new_resource.version
+  end
+  version_hash = RedisioHelper.version_to_hash(current_version)
 
   #Setup a configuration file and init script for each configuration provided
   new_resource.servers.each do |current_instance|
@@ -99,6 +106,7 @@ def configure
         home current['homedir']
         shell current['shell']
         system current['systemuser']
+        not_if { node['etc']['passwd']["#{current['user']}"] }
       end
       #Create the redis configuration directory
       directory current['configdir'] do
@@ -230,7 +238,8 @@ def configure
         })
       end
       #Setup init.d file
-      bin_path = "/usr/local/bin"
+
+      bin_path = node['redisio']['bin_path']
       bin_path = ::File.join(node['redisio']['install_dir'], 'bin') if node['redisio']['install_dir']
       template "/etc/init.d/redis#{server_name}" do
         source 'redis.init.erb'
