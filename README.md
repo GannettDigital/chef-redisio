@@ -1,6 +1,6 @@
 **Please read the changelog when upgrading from the 1.x series to the 2.x series**
 
-![cookbook version](http://img.shields.io/badge/cookbook%20version-2.2.4-blue.svg)
+![cookbook version](http://img.shields.io/badge/cookbook%20version-2.3.0-blue.svg)
 Description
 ===========
 
@@ -36,7 +36,8 @@ Tested on:
 * Ubuntu 12.04
 * Debian 6.0.8
 * Fedora 20
-* Centos 6.4
+* Centos 6.6
+* Centos 7.1
 
 Usage
 =====
@@ -57,7 +58,7 @@ The disable recipe just stops redis and removes it from run levels.
 
 The cookbook also contains a recipe to allow for the installation of the redis ruby gem.
 
-Redis-sentinel will write configuration and state data back into its configuration file.  This creates obvious problems when that config is managed by chef.  There is an attribute set to true which controls if chef manages the redis-sentinel config.  By default chef will write out this config file and manage it.  If deploying sentenel it is recommened that you set the node[:redisio][:sentinel][:manage_config] to false allowing chef to write out the initial config and then allow redis-sentiniel to manage.  If running sentinel it is only advices to have node[:redisio][:sentinel][:manage_config] = true when you are pushing new changes to the config file as it will create a flapping state between chef and sentinel when sentinel writes out state to the file.
+Redis-sentinel will write configuration and state data back into its configuration file.  This creates obvious problems when that config is managed by chef. This cookbook will create the config file once, and then leave a breadcrumb that will guard against the file from being updated again.
 
 Recipes
 -------
@@ -240,9 +241,9 @@ Using the sentinel resources:
 
 ```ruby
 redisio_sentinel "redis-sentinels" do
-  sentinel_defaults redis['sentinel_defaults']
+  sentinel_defaults node['redisio']['sentinel_defaults']
   sentinels sentinel_instances
-  base_piddir redis['base_piddir']
+  base_piddir node['redisio']['base_piddir']
 end
 ```
 
@@ -251,7 +252,7 @@ Attributes
 
 Configuration options, each option corresponds to the same-named configuration option in the redis configuration file;  default values listed
 
-* `redisio['mirror']` - mirror server with path to download redis package, default is https://redis.googlecode.com/files
+* `redisio['mirror']` - mirror server with path to download redis package, default is http://download.redis.io/releases/
 * `redisio['base_name']` - the base name of the redis package to be downloaded (the part before the version), default is 'redis-'
 * `redisio['artifact_type']` - the file extension of the package.  currently only .tar.gz and .tgz are supported, default is 'tar.gz'
 * `redisio['version']` - the version number of redis to install (also appended to the `base_name` for downloading), default is '2.8.17'
@@ -276,11 +277,12 @@ Available options and their defaults
 'ulimit'                  => 0 - 0 is a special value causing the ulimit to be maxconnections +32.  Set to nil or false to disable setting ulimits
 'configdir'               => '/etc/redis' - configuration directory
 'name'                    => nil, Allows you to name the server with something other than port.  Useful if you want to use unix sockets
+'tcpbacklog'              => '511',
 'address'                 => nil, Can accept a single string or an array. When using an array, the FIRST value will be used by the init script for connecting to redis
 'databases'               => '16',
 'backuptype'              => 'rdb',
 'datadir'                 => '/var/lib/redis',
-'unixoscket'              => nil - The location of the unix socket to use,
+'unixsocket'              => nil - The location of the unix socket to use,
 'unixsocketperm'          => nil - The permissions of the unix socket,
 'timeout'                 => '0',
 'keepalive'               => '0',
@@ -291,29 +293,40 @@ Available options and their defaults
 'shutdown_save'           => false,
 'save'                    => nil, # Defaults to ['900 1','300 10','60 10000'] inside of template.  Needed due to lack of hash subtraction
 'stopwritesonbgsaveerror' => 'yes',
+'rdbcompression'          => 'yes',
+'rdbchecksum'             => 'yes',
+'dbfilename'              => nil,
 'slaveof'                 => nil,
 'masterauth'              => nil,
 'slaveservestaledata'     => 'yes',
+'slavereadonly'           => 'yes',
 'replpingslaveperiod'     => '10',
 'repltimeout'             => '60',
+'repldisabletcpnodelay    => 'no',
+'slavepriority'           => '100',
 'requirepass'             => nil,
+'rename_commands'         => nil, or a hash where each key is a redis command and the value is the command's new name.
 'maxclients'              => 10000,
 'maxmemory'               => nil,
 'maxmemorypolicy'         => nil,
 'maxmemorysamples'        => nil,
+'appendfilename'          => nil,
 'appendfsync'             => 'everysec',
 'noappendfsynconrewrite'  => 'no',
 'aofrewritepercentage'    => '100',
 'aofrewriteminsize'       => '64mb',
 'luatimelimit'            => '5000',
 'slowloglogslowerthan'    => '10000',
-'slowlog-max-len'         => '1024',
+'slowlogmaxlen'           => '1024',
 'notifykeyspaceevents'    => '',
 'hashmaxziplistentries'   => '512',
 'hashmaxziplistvalue'     => '64',
+'listmaxziplistentries'   => '512',
+'listmaxziplistvalue'     => '64',
 'setmaxintsetentries'     => '512',
 'zsetmaxziplistentries'   => '128',
 'zsetmaxziplistvalue'     => '64',
+'hllsparsemaxbytes'       => '3000',
 'activerehasing'          => 'yes',
 'clientoutputbufferlimit' => [
   %w(normal 0 0 0),
@@ -324,7 +337,7 @@ Available options and their defaults
 'aofrewriteincrementalfsync' => 'yes',
 'cluster-enabled'            => 'no',
 'cluster-config-file'        => nil, # Defaults to redis instance name inside of template if cluster is enabled.
-'cluster-node-timeout'       => 5,
+'cluster-node-timeout'       => 5000,
 'includes'                   => nil
 ```
 
@@ -359,6 +372,18 @@ The sentinel recipe's use their own attribute file.
 
 * `redisio['redisio']['sentinels']` - Array of sentinels to configure on the node. These settings will override the options in 'sentinel_defaults', if it is left `nil` it will default to `[{'port' => '26379', 'name' => 'mycluster', 'master_ip' => '127.0.0.1', 'master_port' => 6379}]`. If set to `[]` (empty array), no instances will be created.
 
+You may also pass an array of masters to monitor like so:
+```
+[{
+  'sentinel_port' => '26379',
+  'name' => 'mycluster_sentinel',
+  'masters' => [
+    { master_name = 'master6379', master_ip' => '127.0.0.1', 'master_port' => 6379 },
+    { master_name = 'master6380', master_ip' => '127.0.0.1', 'master_port' => 6380 }
+  ]
+
+}]
+```
 
 Resources/Providers
 ===================
