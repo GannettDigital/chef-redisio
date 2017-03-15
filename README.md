@@ -1,6 +1,7 @@
 **Please read the changelog when upgrading from the 1.x series to the 2.x series**
 
-![cookbook version](http://img.shields.io/badge/cookbook%20version-2.4.2-blue.svg)
+[![Build Status](https://travis-ci.org/brianbianco/redisio.svg)](https://travis-ci.org/brianbianco/redisio)
+![cookbook version](http://img.shields.io/badge/cookbook%20version-2.5.0-blue.svg)
 Description
 ===========
 
@@ -21,6 +22,7 @@ Platforms
 
 * Debian, Ubuntu
 * CentOS, Red Hat, Fedora, Scientific Linux
+* FreeBSD
 
 Testing
 -------
@@ -39,6 +41,7 @@ Tested on:
 * Fedora 20
 * Centos 6.6
 * Centos 7.1
+* FreeBSD 10.3
 
 Usage
 =====
@@ -46,6 +49,7 @@ Usage
 The redisio cookbook contains LWRP for installing, configuring and managing redis and redis_sentinel.
 
 The install recipe can build, compile and install redis from sources or install from packages. The configure recipe will configure redis and setup service resources.  These resources will be named for the port of the redis server, unless a "name" attribute was specified.  Example names would be: service["redis6379"] or service["redismaster"] if the name attribute was "master".
+_NOTE: currently installation from source is not supported for FreeBSD_
 
 The most common use case for the redisio cookbook is to use the default recipe, followed by the enable recipe.
 
@@ -54,6 +58,7 @@ Another common use case is to use the default, and then call the service resourc
 It is important to note that changing the configuration options of redis does not make them take effect on the next chef run.  Due to how redis works, you cannot reload a configuration without restarting the redis service.  Redis does not offer a reload option, in order to have new options be used redis must be stopped and started.
 
 You should make sure to set the ulimit for the user you want to run redis as to be higher than the max connections you allow.
+_NOTE: setting ulimit is not supported on FreeBSD since the ulimit cookbook doesn't support FreeBSD_
 
 The disable recipe just stops redis and removes it from run levels.
 
@@ -72,6 +77,7 @@ Recipes
 * redis_gem - This recipe can be used to install the redis ruby gem
 * sentinel - This recipe can be used to install and configure sentinel
 * sentinel_enable - This recipe can be used to enable the sentinel service(s)
+* disable_os_default - This recipe can be used to disable the default OS redis init script
 
 Role File Examples
 ------------------
@@ -382,6 +388,7 @@ The sentinel recipe's use their own attribute file.
 ```
 'user'                    => 'redis',
 'configdir'               => '/etc/redis',
+'sentinel_bind'           => nil,
 'sentinel_port'           => 26379,
 'monitor'                 => nil,
 'down-after-milliseconds' => 30000,
@@ -405,8 +412,8 @@ You may also pass an array of masters to monitor like so:
   'sentinel_port' => '26379',
   'name' => 'mycluster_sentinel',
   'masters' => [
-    { master_name = 'master6379', master_ip' => '127.0.0.1', 'master_port' => 6379 },
-    { master_name = 'master6380', master_ip' => '127.0.0.1', 'master_port' => 6380 }
+    { 'master_name' => 'master6379', 'master_ip' => '127.0.0.1', 'master_port' => 6379 },
+    { 'master_name' => 'master6380', 'master_ip' => '127.0.0.1', 'master_port' => 6380 }
   ]
 
 }]

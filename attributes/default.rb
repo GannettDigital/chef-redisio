@@ -16,19 +16,26 @@
 # limitations under the License.
 #
 
+package_bin_path = '/usr/bin'
+config_dir = '/etc/redis'
+default_package_install = false
+
 case node['platform']
-when 'ubuntu','debian'
+when 'ubuntu', 'debian'
   shell = '/bin/false'
   homedir = '/var/lib/redis'
   package_name = 'redis-server'
-when 'centos','redhat','scientific','amazon','suse'
+when 'centos', 'redhat', 'scientific', 'amazon', 'suse', 'fedora'
   shell = '/bin/sh'
   homedir = '/var/lib/redis'
   package_name = 'redis'
-when 'fedora'
+when 'freebsd'
   shell = '/bin/sh'
-  homedir = '/home' #this is necessary because selinux by default prevents the homedir from being managed in /var/lib/
+  homedir = '/var/lib/redis'
   package_name = 'redis'
+  package_bin_path = '/usr/local/bin'
+  config_dir = '/usr/local/etc/redis'
+  default_package_install = true
 else
   shell = '/bin/sh'
   homedir = '/redis'
@@ -37,24 +44,24 @@ end
 
 # Install related attributes
 default['redisio']['safe_install'] = true
-default['redisio']['package_install'] = false
-default['redisio']['package_name'] = package_name
+default['redisio']['package_install'] = default_package_install
+default['redisio']['package_name'] =  package_name
 default['redisio']['bypass_setup'] = false
 
 # Tarball and download related defaults
-default['redisio']['mirror'] = "http://download.redis.io/releases/"
+default['redisio']['mirror'] = 'http://download.redis.io/releases/'
 default['redisio']['base_name'] = 'redis-'
 default['redisio']['artifact_type'] = 'tar.gz'
 default['redisio']['base_piddir'] = '/var/run/redis'
 
 # Version
-if node['redisio']['package_install']
-  # latest version (only for package install)
-  default['redisio']['version'] = nil
-else
-  # force version for tarball
-  default['redisio']['version'] = '2.8.20'
-end
+default['redisio']['version'] = if node['redisio']['package_install']
+                                  # latest version (only for package install)
+                                  nil
+                                else
+                                  # force version for tarball
+                                  '2.8.20'
+                                end
 
 # Custom installation directory
 default['redisio']['install_dir'] = nil
@@ -62,6 +69,8 @@ default['redisio']['install_dir'] = nil
 # Job control related options (initd, upstart, or systemd)
 if node['platform_family'] == 'rhel' && Gem::Version.new(node['platform_version']) > Gem::Version.new('7.0.0')
   default['redisio']['job_control'] = 'systemd'
+elsif node['platform_family'] == 'freebsd'
+  default['redisio']['job_control'] = 'rcinit'
 else
   default['redisio']['job_control'] = 'initd'
 end
@@ -79,7 +88,7 @@ default['redisio']['default_settings'] = {
   'systemuser'              => true,
   'uid'                     => nil,
   'ulimit'                  => 0,
-  'configdir'               => '/etc/redis',
+  'configdir'               => config_dir,
   'name'                    => nil,
   'tcpbacklog'              => '511',
   'address'                 => nil,
@@ -101,12 +110,15 @@ default['redisio']['default_settings'] = {
   'rdbchecksum'             => 'yes',
   'dbfilename'              => nil,
   'slaveof'                 => nil,
+  'protected_mode'          => nil, # unspecified by default but could be set explicitly to 'yes' or 'no'
   'masterauth'              => nil,
   'slaveservestaledata'     => 'yes',
   'slavereadonly'           => 'yes',
   'replpingslaveperiod'     => '10',
   'repltimeout'             => '60',
   'repldisabletcpnodelay'   => 'no',
+  'replbacklogsize'         => '1mb',
+  'replbacklogttl'          => 3600,
   'slavepriority'           => '100',
   'requirepass'             => nil,
   'rename_commands'         => nil,
@@ -119,6 +131,7 @@ default['redisio']['default_settings'] = {
   'noappendfsynconrewrite'  => 'no',
   'aofrewritepercentage'    => '100',
   'aofrewriteminsize'       => '64mb',
+  'aofloadtruncated'        => 'yes',
   'luatimelimit'            => '5000',
   'slowloglogslowerthan'    => '10000',
   'slowlogmaxlen'           => '1024',
@@ -152,8 +165,8 @@ default['redisio']['default_settings'] = {
 default['redisio']['servers'] = nil
 
 # Define binary path
-if node['redisio']['package_install']
-  default['redisio']['bin_path'] = '/usr/bin'
-else
-  default['redisio']['bin_path'] = '/usr/local/bin'
-end
+default['redisio']['bin_path'] = if node['redisio']['package_install']
+                                   package_bin_path
+                                 else
+                                   '/usr/local/bin'
+                                 end

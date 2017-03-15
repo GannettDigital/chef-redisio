@@ -1,8 +1,9 @@
 #
 # Cookbook Name:: redisio
-# Attribute::redis_gem
+# Recipe:: disable_os_default
 #
 # Copyright 2013, Brian Bianco <brian.bianco@gmail.com>
+#
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +18,15 @@
 # limitations under the License.
 #
 
-# Allow for a redis ruby gem to be installed
-default['redisio']['gem']['name'] = 'redis'
-default['redisio']['gem']['version'] = nil
+# disable the default OS redis init script
+service_name = case node['platform']
+               when 'debian', 'ubuntu'
+                 'redis-server'
+               when 'redhat', 'centos', 'fedora', 'scientific', 'suse', 'amazon'
+                 'redis'
+               end
+
+service service_name do
+  action [:stop, :disable]
+  only_if { service_name }
+end
